@@ -77,10 +77,7 @@ def _get_dask_client(client: Optional[Client]) -> Client:
     client : dask.distributed.Client
         A Dask client.
     """
-    if client is None:
-        return default_client()
-    else:
-        return client
+    return default_client() if client is None else client
 
 
 def _find_n_open_ports(n: int) -> List[int]:
@@ -198,7 +195,7 @@ def _train_part(
         'time_out': time_out,
         'num_machines': num_machines
     }
-    params.update(network_params)
+    params |= network_params
 
     is_ranker = issubclass(model_factory, LGBMRanker)
 
@@ -260,11 +257,7 @@ def _train_part(
 
                 # require that eval_name exists in evaluated result data in case dropped due to padding.
                 # in distributed training the 'training' eval_set is not detected, will have name 'valid_<index>'.
-                if eval_names:
-                    evals_result_name = eval_names[i]
-                else:
-                    evals_result_name = f'valid_{i}'
-
+                evals_result_name = eval_names[i] if eval_names else f'valid_{i}'
                 eval_set = part['eval_set'][i]
                 if eval_set is _DatasetNames.TRAINSET:
                     x_e.append(part['data'])
@@ -276,8 +269,7 @@ def _train_part(
                 if evals_result_name not in evals_result_names:
                     evals_result_names.append(evals_result_name)
 
-                eval_weight = part.get('eval_sample_weight')
-                if eval_weight:
+                if eval_weight := part.get('eval_sample_weight'):
                     if eval_weight[i] is _DatasetNames.SAMPLE_WEIGHT:
                         w_e.append(part['weight'])
                     else:
@@ -400,11 +392,11 @@ def _machines_to_worker_map(machines: str, worker_addresses: Iterable[str]) -> D
 
     out = {}
     for address in worker_addresses:
-        worker_host = urlparse(address).hostname
-        if not worker_host:
-            raise ValueError(f"Could not parse host name from worker address '{address}'")
-        out[address] = machine_to_port[worker_host].pop()
+        if worker_host := urlparse(address).hostname:
+            out[address] = machine_to_port[worker_host].pop()
 
+        else:
+            raise ValueError(f"Could not parse host name from worker address '{address}'")
     return out
 
 
@@ -622,11 +614,7 @@ def _train(
 
                     # ensure that all evaluation parts map uniquely to one part.
                     for j in range(n_largest_eval_parts):
-                        if j < n_this_eval_parts:
-                            w_e = eval_w_parts[j]
-                        else:
-                            w_e = None
-
+                        w_e = eval_w_parts[j] if j < n_this_eval_parts else None
                         parts_idx = j % n_parts
                         if j < n_parts:
                             eval_sample_weights[parts_idx].append([w_e])
@@ -640,11 +628,7 @@ def _train(
                 else:
                     eval_init_score_parts = _split_to_parts(data=eval_init_score[i], is_matrix=False)
                     for j in range(n_largest_eval_parts):
-                        if j < n_this_eval_parts:
-                            init_score_e = eval_init_score_parts[j]
-                        else:
-                            init_score_e = None
-
+                        init_score_e = eval_init_score_parts[j] if j < n_this_eval_parts else None
                         parts_idx = j % n_parts
                         if j < n_parts:
                             eval_init_scores[parts_idx].append([init_score_e])
@@ -658,11 +642,7 @@ def _train(
                 else:
                     eval_g_parts = _split_to_parts(data=eval_group[i], is_matrix=False)
                     for j in range(n_largest_eval_parts):
-                        if j < n_this_eval_parts:
-                            g_e = eval_g_parts[j]
-                        else:
-                            g_e = None
-
+                        g_e = eval_g_parts[j] if j < n_this_eval_parts else None
                         parts_idx = j % n_parts
                         if j < n_parts:
                             eval_groups[parts_idx].append([g_e])
@@ -698,13 +678,8 @@ def _train(
     # Check that all workers were provided some of eval_set. Otherwise warn user that validation
     # data artifacts may not be populated depending on worker returning final estimator.
     if eval_set:
-        for worker in worker_map:
-            has_eval_set = False
-            for part in worker_map[worker]:
-                if 'eval_set' in part.result():
-                    has_eval_set = True
-                    break
-
+        for worker, value in worker_map.items():
+            has_eval_set = any('eval_set' in part.result() for part in value)
             if not has_eval_set:
                 _log_warning(
                     f"Worker {worker} was not allocated eval_set data. Therefore evals_result_ and best_score_ data may be unreliable. "
@@ -751,7 +726,7 @@ def _train(
     else:
         if listen_port_in_params:
             _log_info("Using passed-in 'local_listen_port' for all workers")
-            unique_hosts = set(urlparse(a).hostname for a in worker_addresses)
+            unique_hosts = {urlparse(a).hostname for a in worker_addresses}
             if len(unique_hosts) < len(worker_addresses):
                 msg = (
                     "'local_listen_port' was provided in Dask training parameters, but at least one "

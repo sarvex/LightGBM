@@ -245,7 +245,7 @@ class CustomInstall(install):
         self.bit32 = False
 
     def run(self) -> None:
-        if (8 * struct.calcsize("P")) != 64:
+        if struct.calcsize("P") != 8:
             if self.bit32:
                 logger.warning("You're installing 32-bit version. "
                                "This version is slow and untested, so use it on your own risk.")

@@ -352,9 +352,15 @@ def test_random_search():
     n_iter = 3  # Number of samples
     params = dict(subsample=0.8,
                   subsample_freq=1)
-    param_dist = dict(boosting_type=['rf', 'gbdt'],
-                      n_estimators=[np.random.randint(low=3, high=10) for i in range(n_iter)],
-                      reg_alpha=[np.random.uniform(low=0.01, high=0.06) for i in range(n_iter)])
+    param_dist = dict(
+        boosting_type=['rf', 'gbdt'],
+        n_estimators=[
+            np.random.randint(low=3, high=10) for _ in range(n_iter)
+        ],
+        reg_alpha=[
+            np.random.uniform(low=0.01, high=0.06) for _ in range(n_iter)
+        ],
+    )
     fit_params = dict(eval_set=[(X_val, y_val)],
                       eval_metric=constant_metric,
                       callbacks=[lgb.early_stopping(2)])
@@ -1139,7 +1145,10 @@ def test_first_metric_only():
     iter_valid1_l2 = 4
     iter_valid2_l1 = 2
     iter_valid2_l2 = 2
-    assert len(set([iter_valid1_l1, iter_valid1_l2, iter_valid2_l1, iter_valid2_l2])) == 2
+    assert (
+        len({iter_valid1_l1, iter_valid1_l2, iter_valid2_l1, iter_valid2_l2})
+        == 2
+    )
     iter_min_l1 = min([iter_valid1_l1, iter_valid2_l1])
     iter_min_l2 = min([iter_valid1_l2, iter_valid2_l2])
     iter_min = min([iter_min_l1, iter_min_l2])
@@ -1419,7 +1428,7 @@ def test_classification_and_regression_minimally_work_with_all_all_accepted_data
     X, y, g = _create_data(task, n_samples=2_000)
     weights = np.abs(np.random.randn(y.shape[0]))
 
-    if task == 'binary-classification' or task == 'regression':
+    if task in ['binary-classification', 'regression']:
         init_score = np.full_like(y, np.mean(y))
     elif task == 'multiclass-classification':
         init_score = np.outer(y, np.array([0.1, 0.2, 0.7]))
@@ -1475,9 +1484,7 @@ def test_classification_and_regression_minimally_work_with_all_all_accepted_data
     )
 
     preds = model.predict(X)
-    if task == 'binary-classification':
-        assert accuracy_score(y, preds) >= 0.99
-    elif task == 'multiclass-classification':
+    if task in ['binary-classification', 'multiclass-classification']:
         assert accuracy_score(y, preds) >= 0.99
     elif task == 'regression':
         assert r2_score(y, preds) > 0.86

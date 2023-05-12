@@ -122,10 +122,7 @@ class _RecordEvaluationCallback:
     def _init(self, env: CallbackEnv) -> None:
         self.eval_result.clear()
         for item in env.evaluation_result_list:
-            if len(item) == 4:  # regular train
-                data_name, eval_name = item[:2]
-            else:  # cv
-                data_name, eval_name = item[1].split()
+            data_name, eval_name = item[:2] if len(item) == 4 else item[1].split()
             self.eval_result.setdefault(data_name, collections.OrderedDict())
             if len(item) == 4:
                 self.eval_result[data_name].setdefault(eval_name, [])
@@ -301,10 +298,10 @@ class _EarlyStoppingCallback:
 
         self._reset_storages()
 
-        n_metrics = len(set(m[1] for m in env.evaluation_result_list))
+        n_metrics = len({m[1] for m in env.evaluation_result_list})
         n_datasets = len(env.evaluation_result_list) // n_metrics
         if isinstance(self.min_delta, list):
-            if not all(t >= 0 for t in self.min_delta):
+            if any(t < 0 for t in self.min_delta):
                 raise ValueError('Values for early stopping min_delta must be non-negative.')
             if len(self.min_delta) == 0:
                 if self.verbose:

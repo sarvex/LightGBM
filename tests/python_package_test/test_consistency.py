@@ -16,7 +16,7 @@ class FileLoader:
         self.prefix = prefix
         self.params = {'gpu_use_dp': True}
         with open(self.directory / config_file, 'r') as f:
-            for line in f.readlines():
+            for line in f:
                 line = line.strip()
                 if line and not line.startswith('#'):
                     key, value = [token.strip() for token in line.split('=')]

@@ -104,8 +104,7 @@ def get_names(
     """
     names = []
     for x in infos:
-        for y in x:
-            names.append(y["name"][0])
+        names.extend(y["name"][0] for y in x)
     return names
 
 
@@ -130,8 +129,7 @@ def get_alias(
             if "alias" in y:
                 name = y["name"][0]
                 alias = y["alias"][0].split(',')
-                for name2 in alias:
-                    pairs.append((name2.strip(), name))
+                pairs.extend((name2.strip(), name) for name2 in alias)
     return pairs
 
 
@@ -159,11 +157,10 @@ def parse_check(
     except ValueError:
         idx = 2
         float(check[idx:])
-    if reverse:
-        reversed_sign = {'<': '>', '>': '<', '<=': '>=', '>=': '<='}
-        return check[idx:], reversed_sign[check[:idx]]
-    else:
+    if not reverse:
         return check[idx:], check[:idx]
+    reversed_sign = {'<': '>', '>': '<', '<=': '>=', '>=': '<='}
+    return check[idx:], reversed_sign[check[:idx]]
 
 
 def set_one_var_from_string(
@@ -191,7 +188,7 @@ def set_one_var_from_string(
     univar_mapper = {"int": "GetInt", "double": "GetDouble", "bool": "GetBool", "std::string": "GetString"}
     if "vector" not in param_type:
         ret += f'  {univar_mapper[param_type]}(params, "{name}", &{name});\n'
-        if len(checks) > 0:
+        if checks:
             check_mapper = {"<": "LT", ">": "GT", "<=": "LE", ">=": "GE"}
             for check in checks:
                 value, sign = parse_check(check)

@@ -271,10 +271,10 @@ def test_classifier(output, task, boosting_type, tree_learner, cluster):
             "num_leaves": 31
         }
         if boosting_type == 'rf':
-            params.update({
+            params |= {
                 'bagging_freq': 1,
                 'bagging_fraction': 0.9,
-            })
+            }
         elif boosting_type == 'goss':
             params['top_rate'] = 0.5
 
@@ -465,14 +465,12 @@ def test_classifier_custom_objective(output, task, cluster):
         }
 
         if task == 'binary-classification':
-            params.update({
-                'objective': _objective_logistic_regression,
-            })
+            params['objective'] = _objective_logistic_regression
         elif task == 'multiclass-classification':
-            params.update({
+            params |= {
                 'objective': sklearn_multiclass_custom_objective,
-                'num_classes': 3
-            })
+                'num_classes': 3,
+            }
 
         dask_classifier = lgb.DaskLGBMClassifier(
             client=client,
@@ -603,10 +601,10 @@ def test_regressor(output, boosting_type, tree_learner, cluster):
             "n_estimators": 20,
         }
         if boosting_type == 'rf':
-            params.update({
+            params |= {
                 'bagging_freq': 1,
                 'bagging_fraction': 0.9,
-            })
+            }
 
         dask_regressor = lgb.DaskLGBMRegressor(
             client=client,
@@ -854,10 +852,10 @@ def test_ranker(output, group, boosting_type, tree_learner, cluster):
             "min_child_samples": 1
         }
         if boosting_type == 'rf':
-            params.update({
+            params |= {
                 'bagging_freq': 1,
                 'bagging_fraction': 0.9,
-            })
+            }
 
         dask_ranker = lgb.DaskLGBMRanker(
             client=client,
@@ -1014,25 +1012,22 @@ def test_eval_set_no_early_stopping(task, output, eval_sizes, eval_names_prefix,
             chunk_size=chunk_size
         )
 
-        if task == 'ranking':
+        if task == 'binary-classification':
+            eval_metrics = ['binary_error', 'auc']
+            eval_metric_names = ['binary_logloss', 'binary_error', 'auc']
+            eval_class_weight = []
+            eval_init_score = []
+        elif task == 'multiclass-classification':
+            eval_metrics = ['multi_error']
+            eval_metric_names = ['multi_logloss', 'multi_error']
+        elif task == 'ranking':
             eval_metrics = ['ndcg']
             eval_at = (5, 6)
             eval_metric_names = [f'ndcg@{k}' for k in eval_at]
             eval_group = []
-        else:
-            # test eval_class_weight, eval_init_score on binary-classification task.
-            # Note: objective's default `metric` will be evaluated in evals_result_ in addition to all eval_metrics.
-            if task == 'binary-classification':
-                eval_metrics = ['binary_error', 'auc']
-                eval_metric_names = ['binary_logloss', 'binary_error', 'auc']
-                eval_class_weight = []
-                eval_init_score = []
-            elif task == 'multiclass-classification':
-                eval_metrics = ['multi_error']
-                eval_metric_names = ['multi_logloss', 'multi_error']
-            elif task == 'regression':
-                eval_metrics = ['l1']
-                eval_metric_names = ['l2', 'l1']
+        elif task == 'regression':
+            eval_metrics = ['l1']
+            eval_metric_names = ['l2', 'l1']
 
         # create eval_sets by creating new datasets or copying training data.
         for eval_size in eval_sizes:
@@ -1091,13 +1086,13 @@ def test_eval_set_no_early_stopping(task, output, eval_sizes, eval_names_prefix,
             'eval_metric': eval_metrics
         }
         if task == 'ranking':
-            fit_params.update(
-                {'group': dg,
-                 'eval_group': eval_group,
-                 'eval_at': eval_at}
-            )
+            fit_params |= {
+                'group': dg,
+                'eval_group': eval_group,
+                'eval_at': eval_at,
+            }
         elif task == 'binary-classification':
-            fit_params.update({'eval_class_weight': eval_class_weight})
+            fit_params['eval_class_weight'] = eval_class_weight
 
         if eval_sizes == [0]:
             with pytest.warns(UserWarning, match='Worker (.*) was not allocated eval_set data. Therefore evals_result_ and best_score_ data may be unreliable.'):
@@ -1156,13 +1151,13 @@ def test_eval_set_with_custom_eval_metric(task, cluster):
             chunk_size=chunk_size
         )
 
-        if task == 'ranking':
-            eval_at = (5, 6)
-            eval_metrics = ['ndcg', _constant_metric]
-            eval_metric_names = [f'ndcg@{k}' for k in eval_at] + ['constant_metric']
-        elif task == 'binary-classification':
+        if task == 'binary-classification':
             eval_metrics = ['binary_error', 'auc', _constant_metric]
             eval_metric_names = ['binary_logloss', 'binary_error', 'auc', 'constant_metric']
+        elif task == 'ranking':
+            eval_metrics = ['ndcg', _constant_metric]
+            eval_at = (5, 6)
+            eval_metric_names = [f'ndcg@{k}' for k in eval_at] + ['constant_metric']
         else:
             eval_metrics = ['l1', _constant_metric]
             eval_metric_names = ['l2', 'l1', 'constant_metric']
@@ -1187,11 +1182,11 @@ def test_eval_set_with_custom_eval_metric(task, cluster):
             'eval_metric': eval_metrics
         }
         if task == 'ranking':
-            fit_params.update(
-                {'group': dg,
-                 'eval_group': [dg_e],
-                 'eval_at': eval_at}
-            )
+            fit_params |= {
+                'group': dg,
+                'eval_group': [dg_e],
+                'eval_at': eval_at,
+            }
 
         dask_model = dask_model.fit(**fit_params)
 
@@ -1303,7 +1298,7 @@ def test_model_and_local_version_are_picklable_whether_or_not_client_set_explici
             # created. So setting client to client1 here to test that you can select a non-default client
             assert default_client() == client2
             if set_client:
-                params.update({"client": client1})
+                params["client"] = client1
 
             # unfitted model should survive pickling round trip, and pickling
             # shouldn't have side effects on the model object
@@ -1769,10 +1764,7 @@ def test_init_score(task, output, cluster):
             'time_out': 5
         }
         init_score = random.random()
-        size_factor = 1
-        if task == 'multiclass-classification':
-            size_factor = 3  # number of classes
-
+        size_factor = 3 if task == 'multiclass-classification' else 1
         if output.startswith('dataframe'):
             init_scores = dy.map_partitions(lambda x: pd.DataFrame([[init_score] * size_factor] * x.size))
         else:
@@ -1790,8 +1782,7 @@ def sklearn_checks_to_run():
         "check_set_params"
     ]
     for check_name in check_names:
-        check_func = getattr(sklearn_checks, check_name, None)
-        if check_func:
+        if check_func := getattr(sklearn_checks, check_name, None):
             yield check_func
 
 

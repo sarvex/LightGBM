@@ -858,21 +858,17 @@ def test_early_stopping_min_delta(first_only, single_metric, greater_is_better):
         'mape': 0.01,
     }
     if single_metric:
-        if greater_is_better:
-            metric = 'auc'
-        else:
-            metric = 'binary_logloss'
+        metric = 'auc' if greater_is_better else 'binary_logloss'
+    elif first_only:
+        metric = (
+            ['auc', 'binary_logloss']
+            if greater_is_better
+            else ['binary_logloss', 'auc']
+        )
+    elif greater_is_better:
+        metric = ['auc', 'average_precision']
     else:
-        if first_only:
-            if greater_is_better:
-                metric = ['auc', 'binary_logloss']
-            else:
-                metric = ['binary_logloss', 'auc']
-        else:
-            if greater_is_better:
-                metric = ['auc', 'average_precision']
-            else:
-                metric = ['binary_logloss', 'mape']
+        metric = ['binary_logloss', 'mape']
 
     X, y = load_breast_cancer(return_X_y=True)
     X_train, X_valid, y_train, y_valid = train_test_split(X, y, test_size=0.2, random_state=0)
@@ -1296,7 +1292,7 @@ def test_parameters_are_loaded_from_model_file(tmp_path):
     model_file = tmp_path / 'model.txt'
     lgb.train(params, ds, num_boost_round=1, categorical_feature=[1, 2]).save_model(model_file)
     bst = lgb.Booster(model_file=model_file)
-    set_params = {k: bst.params[k] for k in params.keys()}
+    set_params = {k: bst.params[k] for k in params}
     assert set_params == params
     assert bst.params['categorical_feature'] == [1, 2]
 
@@ -1573,7 +1569,7 @@ def test_contribs_sparse_multiclass():
         np.testing.assert_allclose(contribs_csc_array, contribs_dense)
 
 
-@pytest.mark.skipif(psutil.virtual_memory().available / 1024 / 1024 / 1024 < 3, reason='not enough RAM')
+@pytest.mark.skipif(psutil.virtual_memory().available < 3221225472, reason='not enough RAM')
 def test_int32_max_sparse_contribs():
     params = {
         'objective': 'binary'
@@ -1584,9 +1580,8 @@ def test_int32_max_sparse_contribs():
     gbm = lgb.train(params, lgb_train, num_boost_round=2)
     csr_input_shape = (3000000, 1000)
     test_features = csr_matrix(csr_input_shape)
-    for i in range(0, csr_input_shape[0], csr_input_shape[0] // 6):
-        for j in range(0, 1000, 100):
-            test_features[i, j] = random.random()
+    for i, j in itertools.product(range(0, csr_input_shape[0], csr_input_shape[0] // 6), range(0, 1000, 100)):
+        test_features[i, j] = random.random()
     y_pred_csr = gbm.predict(test_features, pred_contrib=True)
     # Note there is an extra column added to the output for the expected value
     csr_output_shape = (csr_input_shape[0], csr_input_shape[1] + 1)
@@ -1717,11 +1712,13 @@ def generate_trainset_for_monotone_constraints_tests(x3_to_category=True):
          - scales[4] * x3_negatively_correlated_with_y
          - np.cos(scales[5] * np.pi * x3_negatively_correlated_with_y)
          + zs)
-    categorical_features = []
-    if x3_to_category:
-        categorical_features = [2]
-    trainset = lgb.Dataset(x, label=y, categorical_feature=categorical_features, free_raw_data=False)
-    return trainset
+    categorical_features = [2] if x3_to_category else []
+    return lgb.Dataset(
+        x,
+        label=y,
+        categorical_feature=categorical_features,
+        free_raw_data=False,
+    )
 
 
 @pytest.mark.skipif(getenv('TASK', '') == 'cuda', reason='Monotone constraints are not yet supported by CUDA version')
@@ -1771,7 +1768,7 @@ def test_monotone_constraints(test_with_categorical_variable):
             for tree in tree_str:
                 # split_features are in 4th line.
                 features = tree.splitlines()[3].split("=")[1].split(" ")
-                features = set(f"Column_{f}" for f in features)
+                features = {f"Column_{f}" for f in features}
                 feature_sets.append(features)
             return np.array(feature_sets)
 
@@ -2019,7 +2016,7 @@ def check_constant_features(y_true, expected_pred, more_params):
         'min_data_in_bin': 1,
         'boost_from_average': True
     }
-    params.update(more_params)
+    params |= more_params
     lgb_train = lgb.Dataset(X_train, y_train, params=params)
     gbm = lgb.train(params, lgb_train, num_boost_round=2)
     pred = gbm.predict(X_train)
@@ -2325,12 +2322,12 @@ def test_metrics():
     for na_alias in ('None', 'na', 'null', 'custom'):
         params = {'objective': 'binary', 'metric': na_alias, 'verbose': -1}
         train_booster(params=params)
-        assert len(evals_result) == 0
+        assert not evals_result
 
     # custom objective, no feval
     # no default metric
     train_booster(params=params_dummy_obj_verbose)
-    assert len(evals_result) == 0
+    assert not evals_result
 
     # metric in params
     train_booster(params=params_dummy_obj_metric_log_verbose)
@@ -2693,7 +2690,7 @@ def test_multiclass_custom_eval(use_weight):
         np.testing.assert_allclose(value, eval_result[key][metric][-1])
 
 
-@pytest.mark.skipif(psutil.virtual_memory().available / 1024 / 1024 / 1024 < 3, reason='not enough RAM')
+@pytest.mark.skipif(psutil.virtual_memory().available < 3221225472, reason='not enough RAM')
 def test_model_size():
     X, y = make_synthetic_regression()
     data = lgb.Dataset(X, y)
@@ -2791,12 +2788,11 @@ def test_get_split_value_histogram():
     # test bins string type
     hist_vals, bin_edges = gbm.get_split_value_histogram(0, bins='auto')
     hist = gbm.get_split_value_histogram(0, bins='auto', xgboost_style=True)
+    mask = hist_vals > 0
     if lgb.compat.PANDAS_INSTALLED:
-        mask = hist_vals > 0
         np.testing.assert_array_equal(hist_vals[mask], hist['Count'].values)
         np.testing.assert_allclose(bin_edges[1:][mask], hist['SplitValue'].values)
     else:
-        mask = hist_vals > 0
         np.testing.assert_array_equal(hist_vals[mask], hist[:, 1])
         np.testing.assert_allclose(bin_edges[1:][mask], hist[:, 0])
     # test histogram is disabled for categorical features
@@ -2860,14 +2856,17 @@ def test_early_stopping_for_only_first_metric():
     iter_valid1_l2 = 3
     iter_valid2_l1 = 3
     iter_valid2_l2 = 15
-    assert len(set([iter_valid1_l1, iter_valid1_l2, iter_valid2_l1, iter_valid2_l2])) == 2
+    assert (
+        len({iter_valid1_l1, iter_valid1_l2, iter_valid2_l1, iter_valid2_l2})
+        == 2
+    )
     iter_min_l1 = min([iter_valid1_l1, iter_valid2_l1])
     iter_min_l2 = min([iter_valid1_l2, iter_valid2_l2])
     iter_min_valid1 = min([iter_valid1_l1, iter_valid1_l2])
 
     iter_cv_l1 = 15
     iter_cv_l2 = 13
-    assert len(set([iter_cv_l1, iter_cv_l2])) == 2
+    assert len({iter_cv_l1, iter_cv_l2}) == 2
     iter_cv_min = min([iter_cv_l1, iter_cv_l2])
 
     # test for lgb.train
@@ -3117,10 +3116,7 @@ def test_dataset_update_params():
     for key, value in unchangeable_params.items():
         new_params = default_params.copy()
         new_params[key] = value
-        if key != "forcedbins_filename":
-            param_name = key
-        else:
-            param_name = "forced bins"
+        param_name = key if key != "forcedbins_filename" else "forced bins"
         err_msg = ("Reducing `min_data_in_leaf` with `feature_pre_filter=true` may cause *"
                    if key == "min_data_in_leaf"
                    else f"Cannot change {param_name} *")

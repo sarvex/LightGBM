@@ -298,9 +298,8 @@ def generate_r_docs(app: Sphinx) -> None:
         output = '\n'.join([i for i in (stdout, stderr) if i is not None])
         if process.returncode != 0:
             raise RuntimeError(output)
-        else:
-            print(output)
-            print("Done building R-package documentation")
+        print(output)
+        print("Done building R-package documentation")
     except BaseException as e:
         raise Exception(f"An error has occurred while generating documentation for R-package\n{e}")
 

@@ -641,19 +641,15 @@ class LGBMModel(_LGBMModelBase):
                 _log_warning(f"Found '{alias}' in params. Will use it instead of 'objective' argument")
                 if stage == "fit":
                     self._objective = obj
-        if stage == "fit":
-            if self._objective is None:
-                if isinstance(self, LGBMRegressor):
-                    self._objective = "regression"
-                elif isinstance(self, LGBMClassifier):
-                    if self._n_classes > 2:
-                        self._objective = "multiclass"
-                    else:
-                        self._objective = "binary"
-                elif isinstance(self, LGBMRanker):
-                    self._objective = "lambdarank"
-                else:
-                    raise ValueError("Unknown LGBMModel type.")
+        if stage == "fit" and self._objective is None:
+            if isinstance(self, LGBMRegressor):
+                self._objective = "regression"
+            elif isinstance(self, LGBMClassifier):
+                self._objective = "multiclass" if self._n_classes > 2 else "binary"
+            elif isinstance(self, LGBMRanker):
+                self._objective = "lambdarank"
+            else:
+                raise ValueError("Unknown LGBMModel type.")
         if callable(self._objective):
             if stage == "fit":
                 params['objective'] = _ObjectiveFunctionWrapper(self._objective)
@@ -824,11 +820,7 @@ class LGBMModel(_LGBMModelBase):
         if isinstance(init_model, LGBMModel):
             init_model = init_model.booster_
 
-        if callbacks is None:
-            callbacks = []
-        else:
-            callbacks = copy.copy(callbacks)  # don't use deepcopy here to allow non-serializable objects
-
+        callbacks = [] if callbacks is None else copy.copy(callbacks)
         evals_result: _EvalResultDict = {}
         callbacks.append(record_evaluation(evals_result))
 
@@ -1102,18 +1094,16 @@ class LGBMClassifier(_LGBMClassifierBase, LGBMModel):
                 eval_metric_list = [eval_metric]
             else:
                 eval_metric_list = []
-            if self._n_classes > 2:
-                for index, metric in enumerate(eval_metric_list):
+            for index, metric in enumerate(eval_metric_list):
+                if self._n_classes > 2:
                     if metric in {'logloss', 'binary_logloss'}:
                         eval_metric_list[index] = "multi_logloss"
                     elif metric in {'error', 'binary_error'}:
                         eval_metric_list[index] = "multi_error"
-            else:
-                for index, metric in enumerate(eval_metric_list):
-                    if metric in {'logloss', 'multi_logloss'}:
-                        eval_metric_list[index] = 'binary_logloss'
-                    elif metric in {'error', 'multi_error'}:
-                        eval_metric_list[index] = 'binary_error'
+                elif metric in {'logloss', 'multi_logloss'}:
+                    eval_metric_list[index] = 'binary_logloss'
+                elif metric in {'error', 'multi_error'}:
+                    eval_metric_list[index] = 'binary_error'
             eval_metric = eval_metric_list
 
         # do not modify args, as it causes errors in model selection tools
@@ -1176,9 +1166,8 @@ class LGBMClassifier(_LGBMClassifierBase, LGBMModel):
         )
         if callable(self._objective) or raw_score or pred_leaf or pred_contrib:
             return result
-        else:
-            class_index = np.argmax(result, axis=1)
-            return self._le.inverse_transform(class_index)
+        class_index = np.argmax(result, axis=1)
+        return self._le.inverse_transform(class_index)
 
     predict.__doc__ = LGBMModel.predict.__doc__
 

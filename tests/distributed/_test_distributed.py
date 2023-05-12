@@ -47,8 +47,7 @@ def create_data(task: str, n_samples: int = 1_000) -> np.ndarray:
         X, y = make_blobs(n_samples, centers=centers, random_state=42)
     elif task == 'regression':
         X, y = make_regression(n_samples, n_features=4, n_informative=2, random_state=42)
-    dataset = np.hstack([y.reshape(-1, 1), X])
-    return dataset
+    return np.hstack([y.reshape(-1, 1), X])
 
 
 class DistributedMockup:
@@ -149,8 +148,7 @@ class DistributedMockup:
         result = subprocess.run(cmd)
         if result.returncode != 0:
             raise RuntimeError('Error in prediction')
-        y_pred = np.loadtxt(str(TESTS_DIR / 'predictions.txt'))
-        return y_pred
+        return np.loadtxt(str(TESTS_DIR / 'predictions.txt'))
 
     def write_train_config(self, i: int) -> None:
         """Create a file train{i}.conf with the required configuration to train.

@@ -36,21 +36,21 @@ def get_runs(trigger_phrase):
         page = 1
         while True:
             req = request.Request(
-                url="{}/repos/microsoft/LightGBM/issues/{}/comments?page={}&per_page=100".format(
-                    environ.get("GITHUB_API_URL"),
-                    pr_number,
-                    page
-                ),
-                headers={"Accept": "application/vnd.github.v3+json"}
+                url=f'{environ.get("GITHUB_API_URL")}/repos/microsoft/LightGBM/issues/{pr_number}/comments?page={page}&per_page=100',
+                headers={"Accept": "application/vnd.github.v3+json"},
             )
             url = request.urlopen(req)
             data = json.loads(url.read().decode('utf-8'))
             url.close()
             if not data:
                 break
-            runs_on_page = [i for i in data
-                            if i['author_association'].lower() in {'owner', 'member', 'collaborator'}
-                            and i['body'].startswith('/gha run {}'.format(trigger_phrase))]
+            runs_on_page = [
+                i
+                for i in data
+                if i['author_association'].lower()
+                in {'owner', 'member', 'collaborator'}
+                and i['body'].startswith(f'/gha run {trigger_phrase}')
+            ]
             pr_runs.extend(runs_on_page)
             page += 1
     return pr_runs[::-1]

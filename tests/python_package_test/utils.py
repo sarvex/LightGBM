@@ -74,8 +74,6 @@ def make_ranking(n_samples=100, n_features=20, n_informative=5, gmax=2,
     rnd_generator = check_random_state(random_state)
 
     y_vec, group_id_vec = np.empty((0,), dtype=int), np.empty((0,), dtype=int)
-    gid = 0
-
     # build target, group ID vectors.
     relvalues = range(gmax + 1)
 
@@ -87,8 +85,9 @@ def make_ranking(n_samples=100, n_features=20, n_informative=5, gmax=2,
             y_vec = np.concatenate((y_vec, rnd_generator.choice(relvalues, size=gsize, replace=True)))
             group_id_vec = np.concatenate((group_id_vec, [i] * gsize))
 
-    # build y/target and group-id vectors according to n_samples, avg_gs, and random_gs.
     else:
+        gid = 0
+
         while len(y_vec) < n_samples:
             gsize = avg_gs if not random_gs else rnd_generator.poisson(avg_gs)
 

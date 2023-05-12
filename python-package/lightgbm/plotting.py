@@ -234,12 +234,11 @@ def plot_split_value_histogram(
     ax : matplotlib.axes.Axes
         The plot with specified model's feature split value histogram.
     """
-    if MATPLOTLIB_INSTALLED:
-        import matplotlib.pyplot as plt
-        from matplotlib.ticker import MaxNLocator
-    else:
+    if not MATPLOTLIB_INSTALLED:
         raise ImportError('You must install matplotlib and restart your session to plot split value histogram.')
 
+    import matplotlib.pyplot as plt
+    from matplotlib.ticker import MaxNLocator
     if isinstance(booster, LGBMModel):
         booster = booster.booster_
     elif not isinstance(booster, Booster):
@@ -375,15 +374,15 @@ def plot_metric(
 
     name = next(dataset_names_iter)  # take one as sample
     metrics_for_one = eval_results[name]
-    num_metric = len(metrics_for_one)
     if metric is None:
+        num_metric = len(metrics_for_one)
         if num_metric > 1:
             _log_warning("More than one metric available, picking one to plot.")
         metric, results = metrics_for_one.popitem()
-    else:
-        if metric not in metrics_for_one:
-            raise KeyError('No given metric in eval results.')
+    elif metric in metrics_for_one:
         results = metrics_for_one[metric]
+    else:
+        raise KeyError('No given metric in eval results.')
     num_iteration = len(results)
     max_result = max(results)
     min_result = min(results)
@@ -434,10 +433,9 @@ def _determine_direction_for_numeric_split(
         fval = 0.0
     if ((missing_type == _MissingType.ZERO and _is_zero(fval))
             or (missing_type == _MissingType.NAN and math.isnan(fval))):
-        direction = 'left' if default_left else 'right'
+        return 'left' if default_left else 'right'
     else:
-        direction = 'left' if fval <= threshold else 'right'
-    return direction
+        return 'left' if fval <= threshold else 'right'
 
 
 def _determine_direction_for_categorical_split(fval: float, thresholds: str) -> str:
@@ -662,11 +660,7 @@ def create_tree_digraph(
 
     model = booster.dump_model()
     tree_infos = model['tree_info']
-    if 'feature_names' in model:
-        feature_names = model['feature_names']
-    else:
-        feature_names = None
-
+    feature_names = model['feature_names'] if 'feature_names' in model else None
     monotone_constraints = model.get('monotone_constraints', None)
 
     if tree_index < len(tree_infos):
@@ -691,7 +685,7 @@ def create_tree_digraph(
             )[0]
         example_case = example_case[0]
 
-    graph = _to_graphviz(
+    return _to_graphviz(
         tree_info=tree_info,
         show_info=show_info,
         feature_names=feature_names,
@@ -701,8 +695,6 @@ def create_tree_digraph(
         example_case=example_case,
         **kwargs
     )
-
-    return graph
 
 
 def plot_tree(
@@ -774,12 +766,11 @@ def plot_tree(
     ax : matplotlib.axes.Axes
         The plot with single tree.
     """
-    if MATPLOTLIB_INSTALLED:
-        import matplotlib.image as image
-        import matplotlib.pyplot as plt
-    else:
+    if not MATPLOTLIB_INSTALLED:
         raise ImportError('You must install matplotlib and restart your session to plot tree.')
 
+    import matplotlib.image as image
+    import matplotlib.pyplot as plt
     if ax is None:
         if figsize is not None:
             _check_not_tuple_of_2_elements(figsize, 'figsize')

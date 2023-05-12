@@ -102,14 +102,16 @@ class NumpySequence(lgb.Sequence):
     def __getitem__(self, idx):
         # The simple implementation is just a single "return self.ndarray[idx]"
         # The following is for demo and testing purpose.
-        if isinstance(idx, numbers.Integral):
+        if (
+            isinstance(idx, numbers.Integral)
+            or not isinstance(idx, slice)
+            and isinstance(idx, list)
+        ):
             return self.ndarray[idx]
         elif isinstance(idx, slice):
-            if not (idx.step is None or idx.step == 1):
+            if idx.step is not None and idx.step != 1:
                 raise NotImplementedError("No need to implement, caller will not set step by now")
             return self.ndarray[idx.start:idx.stop]
-        elif isinstance(idx, list):
-            return self.ndarray[idx]
         else:
             raise TypeError(f"Sequence Index must be an integer/list/slice, got {type(idx).__name__}")
 
@@ -139,7 +141,6 @@ def test_sequence(tmpdir, sample_count, batch_size, include_0_and_nan, num_seq):
     params = {'bin_construct_sample_cnt': sample_count}
 
     nrow = 50
-    half_nrow = nrow // 2
     ncol = 11
     data = np.arange(nrow * ncol, dtype=np.float64).reshape((nrow, ncol))
 
@@ -148,6 +149,7 @@ def test_sequence(tmpdir, sample_count, batch_size, include_0_and_nan, num_seq):
         data[:, 0] = 0
         data[:, 1] = np.nan
 
+        half_nrow = nrow // 2
         # half col
         data[:half_nrow, 3] = 0
         data[:half_nrow, 2] = np.nan
@@ -324,7 +326,7 @@ def test_add_features_same_booster_behaviour(tmp_path):
         d.set_label(y)
         b1 = lgb.Booster(train_set=d1)
         b = lgb.Booster(train_set=d)
-        for k in range(10):
+        for _ in range(10):
             b.update()
             b1.update()
         dname = tmp_path / "d.txt"
@@ -365,7 +367,7 @@ def test_add_features_from_different_sources():
 
         # test that method works for different data types
         d1 = lgb.Dataset(x_1, feature_name=names, free_raw_data=False).construct()
-        res_feature_names = [name for name in names]
+        res_feature_names = list(names)
         for idx, x_2 in enumerate(xxs, 2):
             original_type = type(d1.get_data())
             d2 = lgb.Dataset(x_2, feature_name=names, free_raw_data=False).construct()
@@ -407,7 +409,7 @@ def test_cegb_affects_behavior(tmp_path):
     ds = lgb.Dataset(X, feature_name=names).construct()
     ds.set_label(y)
     base = lgb.Booster(train_set=ds)
-    for k in range(10):
+    for _ in range(10):
         base.update()
     basename = tmp_path / "basename.txt"
     base.save_model(basename)
@@ -419,7 +421,7 @@ def test_cegb_affects_behavior(tmp_path):
              {'cegb_penalty_split': 1}]
     for case in cases:
         booster = lgb.Booster(train_set=ds, params=case)
-        for k in range(10):
+        for _ in range(10):
             booster.update()
         casename = tmp_path / "casename.txt"
         booster.save_model(casename)
@@ -445,7 +447,7 @@ def test_cegb_scaling_equalities(tmp_path):
     for (p1, p2) in pairs:
         booster1 = lgb.Booster(train_set=ds, params=p1)
         booster2 = lgb.Booster(train_set=ds, params=p2)
-        for k in range(10):
+        for _ in range(10):
             booster1.update()
             booster2.update()
         p1name = tmp_path / "p1.txt"

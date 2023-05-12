@@ -109,9 +109,13 @@ print(experiment('xentropy', label_type='probability', data=DATA))
 #   there are reasons to suspect that `binary` should run faster when the
 #   label is an integer instead of a float
 K = 10
-A = [experiment('binary', label_type='binary', data=DATA)['time']
-     for k in range(K)]
-B = [experiment('xentropy', label_type='binary', data=DATA)['time']
-     for k in range(K)]
+A = [
+    experiment('binary', label_type='binary', data=DATA)['time']
+    for _ in range(K)
+]
+B = [
+    experiment('xentropy', label_type='binary', data=DATA)['time']
+    for _ in range(K)
+]
 print(f"Best `binary` time: {min(A)}")
 print(f"Best `xentropy` time: {min(B)}")
